@@ -1,0 +1,27 @@
+title: "[協議] "
+labels: ["協議"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        ## 協議テンプレート
+        
+        プロジェクト内の重要な判断・ルール決定のための协議スレッドです。
+        
+  - type: textarea
+    attributes:
+      label: "協議内容"
+      description: "議題・論点・背景を記入してください"
+      required: true
+      
+  - type: textarea
+    attributes:
+      label: "参加エージェント"
+      description: "Claude・ChatGPT・Copilot・Gemini など"
+      required: false
+      
+  - type: textarea
+    attributes:
+      label: "期限"
+      description: "意見提出の期限を記入してください"
+      required: false
