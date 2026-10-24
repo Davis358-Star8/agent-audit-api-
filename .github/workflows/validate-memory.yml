@@ -1,0 +1,96 @@
+name: Validate memory
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  validate-memory:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Validate memory JSON and preserve existing IDs
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PUSH_BEFORE: ${{ github.event.before }}
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          if [ "$EVENT_NAME" = "pull_request" ]; then
+            BASE_SHA="$PR_BASE_SHA"
+          else
+            BASE_SHA="$PUSH_BEFORE"
+          fi
+
+          if [ -z "$BASE_SHA" ] || ! git cat-file -e "${BASE_SHA}:memory.json" 2>/dev/null; then
+            echo "::error::Could not find the previous memory.json version to compare."
+            exit 1
+          fi
+
+          if git diff --quiet "$BASE_SHA" -- memory.json; then
+            MEMORY_CHANGED=false
+          else
+            MEMORY_CHANGED=true
+          fi
+
+          BASE_SHA="$BASE_SHA" MEMORY_CHANGED="$MEMORY_CHANGED" python - <<'PY'
+          import json
+          import os
+          import re
+          import subprocess
+          from datetime import datetime
+          from pathlib import Path
+
+          current_path = Path("memory.json")
+          try:
+              current = json.loads(current_path.read_text(encoding="utf-8"))
+              previous_text = subprocess.check_output(
+                  ["git", "show", f"{os.environ['BASE_SHA']}:memory.json"],
+                  text=True,
+                  encoding="utf-8",
+              )
+              previous = json.loads(previous_text)
+          except (OSError, json.JSONDecodeError, subprocess.CalledProcessError) as error:
+              raise SystemExit(f"Invalid memory.json or previous version: {error}")
+
+          if not isinstance(current, dict) or not isinstance(previous, dict):
+              raise SystemExit("memory.json and its previous version must contain JSON objects.")
+
+          def identifiers(value):
+              found = set()
+              if isinstance(value, dict):
+                  candidate = value.get("ID")
+                  if isinstance(candidate, str) and re.fullmatch(
+                      r"(?:T\d+|D\d+|RULE-[A-Za-z0-9]+)", candidate
+                  ):
+                      found.add(candidate)
+                  for child in value.values():
+                      found.update(identifiers(child))
+              elif isinstance(value, list):
+                  for child in value:
+                      found.update(identifiers(child))
+              return found
+
+          missing = identifiers(previous) - identifiers(current)
+          if missing:
+              raise SystemExit("Existing IDs were removed: " + ", ".join(sorted(missing)))
+
+          if os.environ["MEMORY_CHANGED"] == "true":
+              try:
+                  old_updated = datetime.fromisoformat(previous["最終更新"])
+                  new_updated = datetime.fromisoformat(current["最終更新"])
+              except (KeyError, TypeError, ValueError) as error:
+                  raise SystemExit(f"Invalid or missing 最終更新 timestamp: {error}")
+
+              if old_updated.utcoffset() is None or new_updated.utcoffset() is None:
+                  raise SystemExit("最終更新 timestamps must include a timezone.")
+              if new_updated <= old_updated:
+                  raise SystemExit("最終更新 must be newer than the previous version.")
+
+          print("memory.json validation passed.")
+          PY
