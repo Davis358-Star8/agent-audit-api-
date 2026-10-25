@@ -2,7 +2,7 @@
   "説明": "Notionデータベース「メモリー」の同期コピー。正本はNotion。Notionに直接接続できないagent（Copilot・Gemini等）はこのファイルを読む。手で編集しないこと（次回同期で上書き）",
   "正本URL": "https://app.notion.com/p/adf0b8a57524438495082e71edcbfbef",
   "同期者": "Claude（Notionコネクタで読込 → Zapier経由でCommit）",
-  "最終同期": "2026-10-25T17:10+09:00",
+  "最終同期": "2026-10-25T17:06+09:00",
   "件数": 3,
   "記録": [
     {
